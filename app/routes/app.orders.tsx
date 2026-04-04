@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData, useNavigate, useSearchParams } from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { QP_STATUS_LABEL, QP_STATUS_TONE } from "../lib/status-mapping";
@@ -125,7 +125,8 @@ export default function Orders() {
     navigate(q ? `/app/orders?q=${encodeURIComponent(q)}` : "/app/orders");
   }
 
-  function handleSearchKey(e: KeyboardEvent) {
+  function handleSearchKey(e: Event) {
+    if ((e as KeyboardEvent).key !== "Enter") return;
     if (e.key === "Enter") handleSearch();
   }
 
@@ -133,9 +134,9 @@ export default function Orders() {
     <s-page heading="QPExpress Orders">
       {/* Banner */}
       {(selected.size > 0 || failedOrders.length > 0) && (
-        <s-banner tone={selected.size > 0 ? "neutral" : "warning"}>
+        <s-banner tone={selected.size > 0 ? "info" : "warning"}>
           {selected.size > 0 ? (
-            <s-stack direction="inline" gap="base" blockAlign="center">
+            <s-stack direction="inline" gap="base">
               <p>{selected.size} order{selected.size > 1 ? "s" : ""} selected</p>
               <s-button variant="primary" loading={isSubmitting} onClick={sendSelected}>
                 Send to QPExpress
@@ -152,14 +153,15 @@ export default function Orders() {
 
       <s-section heading={`${orders.length} Orders`}>
         {/* Search bar */}
-        <s-stack direction="inline" gap="base" style={{ marginBottom: "12px" }}>
-          <s-text-field
-            label="Search orders"
-            placeholder="e.g. #1001, #1002 or 1001 1002"
-            value={searchInput}
-            onInput={(e: Event) => setSearchInput((e.target as HTMLInputElement).value)}
-            onKeyDown={handleSearchKey}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <div onKeyUp={handleSearchKey}>
+            <s-text-field
+              label="Search orders"
+              placeholder="e.g. #1001, #1002 or 1001 1002"
+              value={searchInput}
+              onInput={(e: Event) => setSearchInput((e.target as HTMLInputElement).value)}
+            />
+          </div>
           <s-button variant="secondary" onClick={handleSearch}>
             Search
           </s-button>
@@ -174,7 +176,7 @@ export default function Orders() {
               Clear
             </s-button>
           )}
-        </s-stack>
+        </div>
 
         {orders.length === 0 ? (
           <s-paragraph>
