@@ -2,12 +2,11 @@
 
 client_id = "9d303846942447327c748d8cd442ddb5"
 name = "AutoShip"
-application_url = "https://example.com"
+application_url = "https://auto-ship-xi.vercel.app"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-01"
