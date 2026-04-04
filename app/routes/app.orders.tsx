@@ -125,8 +125,7 @@ export default function Orders() {
     navigate(q ? `/app/orders?q=${encodeURIComponent(q)}` : "/app/orders");
   }
 
-  function handleSearchKey(e: Event) {
-    if ((e as KeyboardEvent).key !== "Enter") return;
+  function handleSearchKey(e: React.KeyboardEvent) {
     if (e.key === "Enter") handleSearch();
   }
 
@@ -154,7 +153,7 @@ export default function Orders() {
       <s-section heading={`${orders.length} Orders`}>
         {/* Search bar */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-          <div onKeyUp={handleSearchKey}>
+          <div onKeyUp={(e) => { if (e.key === "Enter") handleSearch(); }}>
             <s-text-field
               label="Search orders"
               placeholder="e.g. #1001, #1002 or 1001 1002"
