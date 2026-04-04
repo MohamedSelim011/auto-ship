@@ -45,10 +45,10 @@ export const QP_STATUS_LABEL: Record<string, string> = {
 
 /** Badge tone for Polaris display */
 export const QP_STATUS_TONE: Record<string, string> = {
-  [QP_STATUS.PENDING]: "attention",
-  [QP_STATUS.OUT_FOR_DELIVERY]: "info",
+  [QP_STATUS.PENDING]: "warning",
+  [QP_STATUS.OUT_FOR_DELIVERY]: "neutral",
   [QP_STATUS.DELIVERED]: "success",
-  [QP_STATUS.HOLD]: "warning",
+  [QP_STATUS.HOLD]: "caution",
   [QP_STATUS.UNDELIVERED]: "critical",
   [QP_STATUS.REJECTED]: "critical",
 };

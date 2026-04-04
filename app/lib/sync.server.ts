@@ -2,23 +2,19 @@ import prisma from "../db.server";
 import shopify from "../shopify.server";
 import { getOrderUpdateHistory, createQPOrder } from "./qpexpress.server";
 import { resolveCityId } from "./city-mapping";
-import {
-  QP_TO_SHOPIFY_EVENT,
-  shouldCreateFulfillment,
-} from "./status-mapping";
+import { QP_TO_SHOPIFY_EVENT, shouldCreateFulfillment } from "./status-mapping";
 import {
   getOpenFulfillmentOrderId,
   createFulfillment,
   addFulfillmentEvent,
 } from "./shopify-fulfillment.server";
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 let schedulerStarted = false;
 
 export function startScheduler() {
   if (schedulerStarted) return;
   schedulerStarted = true;
-
   setInterval(async () => {
     try {
       await syncAllShops();
@@ -26,7 +22,6 @@ export function startScheduler() {
       console.error("[QPExpress Scheduler] Error:", err);
     }
   }, SYNC_INTERVAL_MS);
-
   console.log("[QPExpress Scheduler] Started — polling every 5 minutes");
 }
 
@@ -39,8 +34,8 @@ export async function syncAllShops() {
   }
 }
 
+// Only syncs delivery statuses back from QPExpress — does NOT auto-send orders
 export async function syncShop(shop: string) {
-  // Find last synced time to use as from_date
   const lastSynced = await prisma.orderMapping.findFirst({
     where: { shop, lastSyncedAt: { not: null } },
     orderBy: { lastSyncedAt: "desc" },
@@ -52,22 +47,16 @@ export async function syncShop(shop: string) {
     : undefined;
 
   const updates = await getOrderUpdateHistory(shop, fromDate);
-
-  // Only process Order_Delivery_Status field changes
-  const statusUpdates = updates.filter(
-    (u) => u.field === "Order_Delivery_Status"
-  );
+  const statusUpdates = updates.filter((u) => u.field === "Order_Delivery_Status");
 
   for (const update of statusUpdates) {
     const serial = String(update.serial);
     const mapping = await prisma.orderMapping.findFirst({
       where: { shop, qpExpressSerial: serial },
     });
-
     if (!mapping) continue;
 
     const shopifyEvent = QP_TO_SHOPIFY_EVENT[update.new_value];
-
     if (shopifyEvent && shouldCreateFulfillment(update.new_value)) {
       await updateShopifyFulfillmentStatus(shop, mapping, shopifyEvent);
     }
@@ -82,9 +71,87 @@ export async function syncShop(shop: string) {
       },
     });
   }
+}
 
-  // Retry failed orders
-  await retryFailedOrders(shop);
+// Sends specific orders (by OrderMapping IDs) to QPExpress
+export async function sendOrdersToQP(shop: string, mappingIds: string[]) {
+  const { admin } = await shopify.unauthenticated.admin(shop);
+
+  for (const mappingId of mappingIds) {
+    const mapping = await prisma.orderMapping.findUnique({ where: { id: mappingId } });
+    if (!mapping) continue;
+
+    try {
+      const orderResponse = await admin.graphql(
+        `#graphql
+        query getOrder($id: ID!) {
+          order(id: $id) {
+            id
+            name
+            createdAt
+            note
+            totalPriceSet { shopMoney { amount } }
+            shippingAddress {
+              firstName lastName address1 city phone
+            }
+            lineItems(first: 20) { nodes { title quantity } }
+            customer { phone }
+          }
+        }`,
+        { variables: { id: mapping.shopifyOrderId } }
+      );
+
+      const orderData = await orderResponse.json();
+      const order = orderData.data?.order;
+      if (!order) {
+        await prisma.orderMapping.update({
+          where: { id: mappingId },
+          data: { syncStatus: "failed", errorMessage: "Order not found in Shopify" },
+        });
+        continue;
+      }
+
+      const shippingAddress = order.shippingAddress;
+      const phone = shippingAddress?.phone || order.customer?.phone || "";
+      const fullName = `${shippingAddress?.firstName ?? ""} ${shippingAddress?.lastName ?? ""}`.trim();
+      const cityId = resolveCityId(shippingAddress?.city ?? "");
+      const lineItemTitles = order.lineItems.nodes
+        .map((li: { title: string; quantity: number }) => `${li.title} x${li.quantity}`)
+        .join(", ");
+
+      const qpOrder = await createQPOrder(shop, {
+        full_name: fullName,
+        phone,
+        address: shippingAddress?.address1 ?? "",
+        city: cityId,
+        total_amount: parseFloat(order.totalPriceSet.shopMoney.amount),
+        notes: order.note ?? "",
+        order_date: order.createdAt,
+        shipment_contents: lineItemTitles,
+        referenceID: mapping.shopifyOrderNumber,
+      });
+
+      await prisma.orderMapping.update({
+        where: { id: mappingId },
+        data: {
+          qpExpressSerial: String(qpOrder.serial),
+          qpStatus: qpOrder.Order_Delivery_Status,
+          syncStatus: "synced",
+          errorMessage: null,
+          lastSyncedAt: new Date(),
+        },
+      });
+
+      console.log(`[Send] ${mapping.shopifyOrderNumber} → QPExpress serial ${qpOrder.serial}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[Send] Failed for ${mapping.shopifyOrderNumber}:`, message);
+      await prisma.orderMapping.update({
+        where: { id: mappingId },
+        data: { syncStatus: "failed", errorMessage: message },
+      });
+    }
+  }
 }
 
 async function updateShopifyFulfillmentStatus(
@@ -99,22 +166,12 @@ async function updateShopifyFulfillmentStatus(
 ) {
   try {
     const { admin } = await shopify.unauthenticated.admin(shop);
-
     let fulfillmentId = mapping.shopifyFulfillmentId;
 
     if (!fulfillmentId) {
-      const fulfillmentOrderId = await getOpenFulfillmentOrderId(
-        admin,
-        mapping.shopifyOrderId
-      );
+      const fulfillmentOrderId = await getOpenFulfillmentOrderId(admin, mapping.shopifyOrderId);
       if (!fulfillmentOrderId) return;
-
-      fulfillmentId = await createFulfillment(
-        admin,
-        fulfillmentOrderId,
-        mapping.qpExpressSerial ?? ""
-      );
-
+      fulfillmentId = await createFulfillment(admin, fulfillmentOrderId, mapping.qpExpressSerial ?? "");
       if (fulfillmentId) {
         await prisma.orderMapping.update({
           where: { id: mapping.id },
@@ -127,96 +184,6 @@ async function updateShopifyFulfillmentStatus(
       await addFulfillmentEvent(admin, fulfillmentId, shopifyEvent);
     }
   } catch (err) {
-    console.error(
-      `[QPExpress Sync] Failed to update Shopify fulfillment for order ${mapping.shopifyOrderId}:`,
-      err
-    );
-  }
-}
-
-export async function retryFailedOrders(shop: string) {
-  const failedOrders = await prisma.orderMapping.findMany({
-    where: { shop, syncStatus: "failed", retryCount: { lt: 2 } },
-  });
-
-  if (failedOrders.length === 0) return;
-
-  const { admin } = await shopify.unauthenticated.admin(shop);
-
-  for (const mapping of failedOrders) {
-    try {
-      // Re-fetch the Shopify order to get the original data
-      const orderResponse = await admin.graphql(
-        `#graphql
-        query getOrder($id: ID!) {
-          order(id: $id) {
-            id
-            name
-            createdAt
-            note
-            totalPriceSet { shopMoney { amount } }
-            shippingAddress {
-              firstName
-              lastName
-              address1
-              city
-              phone
-            }
-            lineItems(first: 20) {
-              nodes { title quantity }
-            }
-            customer { phone }
-          }
-        }`,
-        { variables: { id: mapping.shopifyOrderId } }
-      );
-
-      const orderData = await orderResponse.json();
-      const order = orderData.data?.order;
-      if (!order) continue;
-
-      const shippingAddress = order.shippingAddress;
-      const lineItemTitles = order.lineItems.nodes
-        .map((li: { title: string; quantity: number }) => `${li.title} x${li.quantity}`)
-        .join(", ");
-
-      const phone =
-        shippingAddress?.phone || order.customer?.phone || "";
-
-      const cityId = resolveCityId(shippingAddress?.city ?? "");
-
-      const qpOrder = await createQPOrder(shop, {
-        full_name: `${shippingAddress?.firstName ?? ""} ${shippingAddress?.lastName ?? ""}`.trim(),
-        phone,
-        address: shippingAddress?.address1 ?? "",
-        city: cityId,
-        total_amount: parseFloat(order.totalPriceSet.shopMoney.amount),
-        notes: order.note ?? "",
-        order_date: order.createdAt,
-        shipment_contents: lineItemTitles,
-        referenceID: mapping.shopifyOrderNumber,
-      });
-
-      await prisma.orderMapping.update({
-        where: { id: mapping.id },
-        data: {
-          qpExpressSerial: String(qpOrder.serial),
-          syncStatus: "synced",
-          errorMessage: null,
-          retryCount: { increment: 1 },
-          lastSyncedAt: new Date(),
-        },
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      await prisma.orderMapping.update({
-        where: { id: mapping.id },
-        data: {
-          retryCount: { increment: 1 },
-          errorMessage: message,
-          syncStatus: mapping.retryCount + 1 >= 2 ? "failed" : "failed",
-        },
-      });
-    }
+    console.error(`[QPExpress Sync] Failed to update Shopify fulfillment for ${mapping.shopifyOrderId}:`, err);
   }
 }
