@@ -38,6 +38,6 @@ for (const city of CITIES) {
   }
 }
 
-export function resolveCityId(cityName: string): number | null {
-  return CITY_LOOKUP.get(cityName.trim().toLowerCase()) ?? null;
+export function resolveCityId(cityName: string): number {
+  return CITY_LOOKUP.get(cityName.trim().toLowerCase()) ?? 1;
 }

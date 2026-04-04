@@ -56,24 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response(null, { status: 200 });
   }
 
-  // Resolve QPExpress city ID from built-in mapping
-  const cityName = shippingAddress.city;
-  const cityId = resolveCityId(cityName);
-
-  if (cityId === null) {
-    console.log(`[Webhook] Unknown city "${cityName}" — saving as failed`);
-    await prisma.orderMapping.create({
-      data: {
-        shop,
-        shopifyOrderId,
-        shopifyOrderNumber,
-        syncStatus: "failed",
-        errorMessage: `Unknown city "${cityName}". Contact support to add it.`,
-        retryCount: 0,
-      },
-    });
-    return new Response(null, { status: 200 });
-  }
+  const cityId = resolveCityId(shippingAddress.city);
 
   const lineItemTitles = order.line_items
     .map((li) => `${li.title} x${li.quantity}`)

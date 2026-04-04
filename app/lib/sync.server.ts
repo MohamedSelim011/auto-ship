@@ -184,17 +184,6 @@ export async function retryFailedOrders(shop: string) {
         shippingAddress?.phone || order.customer?.phone || "";
 
       const cityId = resolveCityId(shippingAddress?.city ?? "");
-      if (!cityId) {
-        await prisma.orderMapping.update({
-          where: { id: mapping.id },
-          data: {
-            retryCount: { increment: 1 },
-            errorMessage: `Unknown city "${shippingAddress?.city}". Cannot map to QPExpress.`,
-            syncStatus: "failed",
-          },
-        });
-        continue;
-      }
 
       const qpOrder = await createQPOrder(shop, {
         full_name: `${shippingAddress?.firstName ?? ""} ${shippingAddress?.lastName ?? ""}`.trim(),
