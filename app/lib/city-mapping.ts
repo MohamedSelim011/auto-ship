@@ -1,5 +1,5 @@
 const CITIES: { id: number; names: string[] }[] = [
-  { id: 1,  names: ["قاهره", "القاهره", "القاهرة", "cairo", "cario"] },
+  { id: 1,  names: ["قاهره", "القاهره", "القاهرة", "cairo", "cario", "nasr city", "nasrcity", "nasr", "shubra el kheima", "shubra el-kheima", "shubra", "شبرا الخيمة", "شبرا", "مدينة نصر"] },
   { id: 2,  names: ["اسكندريه", "اسكندرية", "alexandria", "alex", "alexandriya"] },
   { id: 3,  names: ["جيزة", "الجيزة", "giza", "gizaah"] },
   { id: 4,  names: ["قليوبية", "qalyubia", "qalyoubia", "kaliobia"] },
