@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model QPExpressConfig {
+  id          String   @id @default(cuid())
+  shop        String   @unique
+  username    String
+  password    String
+  token       String?
+  companyName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CityMapping {
+  id          String   @id @default(cuid())
+  shop        String
+  shopifyCity String
+  qpCityId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shop, shopifyCity])
+  @@index([shop])
+}
+
+model OrderMapping {
+  id                   String    @id @default(cuid())
+  shop                 String
+  shopifyOrderId       String
+  shopifyOrderNumber   String
+  shopifyFulfillmentId String?
+  qpExpressSerial      String?
+  qpStatus             String?
+  syncStatus           String    @default("pending")
+  retryCount           Int       @default(0)
+  errorMessage         String?
+  lastSyncedAt         DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([shop, shopifyOrderId])
+  @@index([shop])
+  @@index([syncStatus])
+  @@index([qpExpressSerial])
+}
