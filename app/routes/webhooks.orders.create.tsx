@@ -41,6 +41,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const customerName = [shippingAddress?.first_name, shippingAddress?.last_name]
     .filter(Boolean)
     .join(" ");
+  const addressLine = [shippingAddress?.address1, shippingAddress?.city]
+    .filter(Boolean)
+    .join(", ");
 
   // "paid" = online payment, anything else = COD
   const isPaidOnline = order.financial_status === "paid";
@@ -53,6 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       syncStatus: "new",
       customerName: customerName || null,
       customerPhone: phone || null,
+      shippingAddress: addressLine || null,
       isPaidOnline,
     },
   });

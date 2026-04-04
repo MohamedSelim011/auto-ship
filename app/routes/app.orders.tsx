@@ -57,6 +57,7 @@ type Order = {
   shopifyOrderId: string;
   customerName: string | null;
   customerPhone: string | null;
+  shippingAddress: string | null;
   isPaidOnline: boolean;
   qpExpressSerial: string | null;
   qpStatus: string | null;
@@ -152,8 +153,9 @@ export default function Orders() {
 
       <s-section heading={`${orders.length} Orders`}>
         {/* Search bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-          <div onKeyUp={(e) => { if (e.key === "Enter") handleSearch(); }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", marginBottom: "16px" }}
+          onKeyUp={(e) => { if (e.key === "Enter") handleSearch(); }}>
+          <div style={{ flex: 1 }}>
             <s-text-field
               label="Search orders"
               placeholder="e.g. #1001, #1002 or 1001 1002"
@@ -161,17 +163,9 @@ export default function Orders() {
               onInput={(e: Event) => setSearchInput((e.target as HTMLInputElement).value)}
             />
           </div>
-          <s-button variant="secondary" onClick={handleSearch}>
-            Search
-          </s-button>
+          <s-button variant="secondary" onClick={handleSearch}>Search</s-button>
           {initialQ && (
-            <s-button
-              variant="secondary"
-              onClick={() => {
-                setSearchInput("");
-                navigate("/app/orders");
-              }}
-            >
+            <s-button variant="secondary" onClick={() => { setSearchInput(""); navigate("/app/orders"); }}>
               Clear
             </s-button>
           )}
@@ -197,6 +191,7 @@ export default function Orders() {
                   </th>
                   <th style={thStyle}>Order</th>
                   <th style={thStyle}>Customer</th>
+                  <th style={thStyle}>Address</th>
                   <th style={thStyle}>Payment</th>
                   <th style={thStyle}>QPExpress Serial</th>
                   <th style={thStyle}>Delivery Status</th>
@@ -240,6 +235,9 @@ export default function Orders() {
                         {order.customerPhone && (
                           <div style={{ fontSize: "12px", color: "#6d7175" }}>{order.customerPhone}</div>
                         )}
+                      </td>
+                      <td style={{ ...tdStyle, maxWidth: 180, color: "#6d7175", fontSize: "13px" }}>
+                        {order.shippingAddress ?? "—"}
                       </td>
                       <td style={tdStyle}>
                         <s-badge tone={order.isPaidOnline ? "success" : "neutral"}>
