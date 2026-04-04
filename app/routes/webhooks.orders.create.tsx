@@ -10,9 +10,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const order = payload as {
     id: number;
     name: string;
-    created_at: string;
-    note?: string;
-    total_price: string;
+    financial_status: string; // "paid" | "pending" | "voided" etc.
     customer?: { phone?: string };
     shipping_address?: {
       first_name?: string;
@@ -27,31 +25,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shopifyOrderId = `gid://shopify/Order/${order.id}`;
   const shopifyOrderNumber = order.name;
 
-  // Only track orders if QPExpress is configured for this shop
   const config = await prisma.qPExpressConfig.findUnique({ where: { shop } });
   if (!config) {
     console.log(`[Webhook] QPExpress not configured for ${shop} — skipping`);
     return new Response(null, { status: 200 });
   }
 
-  // Avoid duplicates
   const existing = await prisma.orderMapping.findUnique({
     where: { shop_shopifyOrderId: { shop, shopifyOrderId } },
   });
-  if (existing) {
-    return new Response(null, { status: 200 });
-  }
+  if (existing) return new Response(null, { status: 200 });
 
-  // Save as "new" — merchant will manually select and send to QPExpress
+  const shippingAddress = order.shipping_address;
+  const phone = shippingAddress?.phone || order.customer?.phone || "";
+  const customerName = [shippingAddress?.first_name, shippingAddress?.last_name]
+    .filter(Boolean)
+    .join(" ");
+
+  // "paid" = online payment, anything else = COD
+  const isPaidOnline = order.financial_status === "paid";
+
   await prisma.orderMapping.create({
     data: {
       shop,
       shopifyOrderId,
       shopifyOrderNumber,
       syncStatus: "new",
+      customerName: customerName || null,
+      customerPhone: phone || null,
+      isPaidOnline,
     },
   });
 
-  console.log(`[Webhook] Order ${shopifyOrderNumber} saved — waiting for manual send`);
+  console.log(`[Webhook] Order ${shopifyOrderNumber} saved (${isPaidOnline ? "paid online" : "COD"}) — waiting for manual send`);
   return new Response(null, { status: 200 });
 };

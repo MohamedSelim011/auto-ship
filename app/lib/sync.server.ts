@@ -119,12 +119,17 @@ export async function sendOrdersToQP(shop: string, mappingIds: string[]) {
         .map((li: { title: string; quantity: number }) => `${li.title} x${li.quantity}`)
         .join(", ");
 
+      // Paid online → amount = 0 (nothing to collect on delivery)
+      const totalAmount = mapping.isPaidOnline
+        ? 0
+        : parseFloat(order.totalPriceSet.shopMoney.amount);
+
       const qpOrder = await createQPOrder(shop, {
         full_name: fullName,
         phone,
         address: shippingAddress?.address1 ?? "",
         city: cityId,
-        total_amount: parseFloat(order.totalPriceSet.shopMoney.amount),
+        total_amount: totalAmount,
         notes: order.note ?? "",
         order_date: order.createdAt,
         shipment_contents: lineItemTitles,

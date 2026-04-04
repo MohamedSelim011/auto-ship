@@ -68,6 +68,9 @@ model OrderMapping {
   retryCount           Int       @default(0)
   errorMessage         String?
   lastSyncedAt         DateTime?
+  customerName         String?
+  customerPhone        String?
+  isPaidOnline         Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
