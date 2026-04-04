@@ -1,6 +1,7 @@
 import prisma from "../db.server";
 import shopify from "../shopify.server";
 import { getOrderUpdateHistory, createQPOrder } from "./qpexpress.server";
+import { resolveCityId } from "./city-mapping";
 import {
   QP_TO_SHOPIFY_EVENT,
   shouldCreateFulfillment,
@@ -182,11 +183,24 @@ export async function retryFailedOrders(shop: string) {
       const phone =
         shippingAddress?.phone || order.customer?.phone || "";
 
+      const cityId = resolveCityId(shippingAddress?.city ?? "");
+      if (!cityId) {
+        await prisma.orderMapping.update({
+          where: { id: mapping.id },
+          data: {
+            retryCount: { increment: 1 },
+            errorMessage: `Unknown city "${shippingAddress?.city}". Cannot map to QPExpress.`,
+            syncStatus: "failed",
+          },
+        });
+        continue;
+      }
+
       const qpOrder = await createQPOrder(shop, {
         full_name: `${shippingAddress?.firstName ?? ""} ${shippingAddress?.lastName ?? ""}`.trim(),
         phone,
         address: shippingAddress?.address1 ?? "",
-        city: shippingAddress?.city ?? "",
+        city: cityId,
         total_amount: parseFloat(order.totalPriceSet.shopMoney.amount),
         notes: order.note ?? "",
         order_date: order.createdAt,
