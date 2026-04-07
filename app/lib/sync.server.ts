@@ -131,7 +131,7 @@ export async function sendOrdersToQP(shop: string, mappingIds: string[]) {
         city: cityId,
         total_amount: totalAmount,
         notes: order.note ?? "",
-        order_date: order.createdAt,
+        order_date: new Date().toISOString(),
         shipment_contents: lineItemTitles,
         referenceID: mapping.shopifyOrderNumber,
       });

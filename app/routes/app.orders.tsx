@@ -21,7 +21,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: {
       shop: session.shop,
       ...(terms.length > 0
-        ? { shopifyOrderNumber: { in: terms.map((t) => (t.startsWith("#") ? t : `#${t}`)) } }
+        ? {
+            OR: terms.map((t) => ({
+              shopifyOrderNumber: { contains: t.replace(/^#/, "") },
+            })),
+          }
         : {}),
     },
     orderBy: { createdAt: "desc" },
