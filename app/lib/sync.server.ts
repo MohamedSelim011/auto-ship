@@ -130,10 +130,10 @@ export async function sendOrdersToQP(shop: string, mappingIds: string[]) {
         address: shippingAddress?.address1 ?? "",
         city: cityId,
         total_amount: totalAmount,
-        notes: order.note ?? "",
+        notes: [order.note, mapping.shopifyOrderNumber].filter(Boolean).join(" | "),
         order_date: new Date().toISOString(),
         shipment_contents: lineItemTitles,
-        referenceID: mapping.shopifyOrderNumber,
+        referenceID: "",
       });
 
       await prisma.orderMapping.update({
